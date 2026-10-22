@@ -3,7 +3,7 @@
 - 日期：2026-10-21
 - 状态：设计已确认，待实施
 - 目标设备：iPhone 11 Pro
-- 最低 iOS 版本：16.1
+- 最低 iOS 版本：17.0
 
 ## 1. 背景与目标
 
@@ -28,7 +28,7 @@ React 19 前端
 当前 iOS 工程已有：
 
 - Capacitor iOS 壳；
-- iOS 15.5 部署目标（本项目提升到 16.1）；
+- iOS 15.5 部署目标（本项目提升到 17.0）；
 - Capacitor Filesystem、Local Notifications、Share、App 等插件；
 - 相机和麦克风用途说明；
 - Print 插件；
@@ -214,7 +214,7 @@ Live Activity 按钮通过 App Intents 与 App Group 共享状态传回主 App�
 
 ### 阶段 1：iOS 基础稳定性
 
-- 将部署目标从 15.5 提升到 16.1；
+- 将部署目标从 15.5 提升到 17.0；
 - 固定 Bundle ID、签名 Team 和版本号策略；
 - 验证 Filesystem、Share、Notifications、相机和媒体；
 - 验证数据恢复与覆盖安装；

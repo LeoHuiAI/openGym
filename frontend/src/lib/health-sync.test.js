@@ -31,7 +31,7 @@ vi.mock('@capacitor/core', () => ({
         if (h.fail) throw Object.assign(new Error('refused'), { code: h.fail })
       },
       remove: async arg => { h.calls.push(['remove', arg]) },
-      openSettings: async () => {},
+      openSettings: async () => { h.calls.push(['openSettings']) },
     }
   }),
 }))
@@ -91,10 +91,59 @@ describe('turning it on', () => {
     h.platform = 'ios'
     expect(await hs.healthStatus()).toEqual({ status: 'available', granted: false })
     expect(h.registerPlugin).toHaveBeenCalledWith('HealthKit')
+    // A status check must not prompt: only enableHealth requests write permission.
+    expect(h.calls).toEqual([])
 
-    const result = await hs.enableHealth(state([workout('w1', 17)]))
+    const result = await hs.enableHealth(state([workout('w1', 17)], [{ d: '2026-09-17', w: 80, t: at(17, 7) }]))
     expect(result).toMatchObject({ ok: true })
-    expect(h.calls).toContainEqual(['write', expect.objectContaining({ sessions: expect.any(Array) })])
+    expect(h.calls[0]).toEqual(['request'])
+    expect(writes()).toEqual([{
+      sessions: [expect.objectContaining({ id: 'opengym-w-w1' })],
+      weights: [expect.objectContaining({ id: 'opengym-bw-2026-09-17' })],
+    }])
+  })
+  it('removes only deleted HealthKit records and opens Apple Health settings', async () => {
+    h.platform = 'ios'
+    await hs.enableHealth(state([workout('w1', 17)], [{ d: '2026-09-17', w: 80, t: at(17, 7) }]))
+    h.calls = []
+
+    await hs.syncHealth(state([]))
+    expect(removes()).toEqual([{ sessions: ['opengym-w-w1'], weights: ['opengym-bw-2026-09-17'] }])
+
+    h.calls = []
+    await hs.openHealthSettings()
+    expect(h.calls).toEqual([['openSettings']])
+  })
+  it('keeps training local when Apple Health permission is denied', async () => {
+    h.platform = 'ios'
+    h.grant = false
+    const S = state([workout('w1', 17)])
+    const before = structuredClone(S)
+
+    expect(await hs.enableHealth(S)).toEqual({ ok: false, reason: 'denied' })
+    expect(S).toEqual(before)
+    expect(writes()).toEqual([])
+    expect(file()).toBeNull()
+  })
+  it('retries an edited iOS record with the same external ID after a permission failure', async () => {
+    h.platform = 'ios'
+    const original = workout('w1', 17)
+    await hs.enableHealth(state([original]))
+    const written = file().written
+    const edited = { ...original, name: 'Updated push' }
+    h.fail = 'permission'
+    h.calls = []
+
+    await hs.syncHealth(state([edited]))
+    expect(file()).toMatchObject({ written, error: 'permission' })
+    expect(writes()[0].sessions).toEqual([expect.objectContaining({ id: 'opengym-w-w1', title: 'Updated push' })])
+
+    h.fail = null
+    h.calls = []
+    await hs.syncHealth(state([edited]))
+    expect(writes()[0].sessions.map(s => s.id)).toEqual(['opengym-w-w1'])
+    expect(file().error).toBeNull()
+    expect(file().written['opengym-w-w1']).not.toEqual(written['opengym-w-w1'])
   })
   it('normalizes an unavailable iOS provider to unsupported', async () => {
     h.platform = 'ios'

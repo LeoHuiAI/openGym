@@ -10,7 +10,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true
 // can be installed, off until switched on, and turning it off asks what happens to what was
 // already written. lib/health-sync.js is mocked; its own tests cover the writing.
 const mocks = vi.hoisted(() => {
-  const state = { S: null, MOBILE: true, android: true, status: { status: 'available', granted: false }, health: { on: false, written: {}, error: null } }
+  const state = { S: null, MOBILE: true, android: true, ios: false, status: { status: 'available', granted: false }, health: { on: false, written: {}, error: null } }
   state.snapshot = () => ({
     S: state.S, user: null, update: vi.fn(),
     replaceState: vi.fn(), setUser: vi.fn(), pullState: vi.fn(), pushState: vi.fn(),
@@ -41,6 +41,7 @@ vi.mock('../lib/wakelock.js', () => ({ wakeLockSupported: () => false }))
 vi.mock('../lib/mobile.js', () => ({
   get MOBILE() { return mocks.MOBILE },
   isAndroid: () => Promise.resolve(mocks.android),
+  isIOS: () => Promise.resolve(mocks.ios),
   shareExport: vi.fn(), syncReminder: vi.fn(),
 }))
 vi.mock('../lib/update.js', () => ({ checkForUpdate: () => Promise.resolve({ hasUpdate: false }), downloadAndInstall: vi.fn() }))
@@ -50,6 +51,7 @@ vi.mock('../lib/health-sync.js', () => ({
   enableHealth: (...a) => mocks.enableHealth(...a),
   disableHealth: (...a) => mocks.disableHealth(...a),
   openHealthConnect: (...a) => mocks.openHealthConnect(...a),
+  openHealthSettings: (...a) => mocks.openHealthConnect(...a),
   onHealthChange: () => () => {},
 }))
 vi.mock('./MobileOnboarding.jsx', () => ({ ConnectSheet: () => null }))
@@ -65,6 +67,7 @@ beforeEach(() => {
   mocks.S = { unit: 'kg', restSec: 90, restPauseSec: 15, sound: false, effort: 'none', gifSize: 'full', workouts: [], routines: [], exWeights: {} }
   mocks.MOBILE = true
   mocks.android = true
+  mocks.ios = false
   mocks.status = { status: 'available', granted: false }
   mocks.health = { on: false, written: {}, error: null }
   for (const k of ['enableHealth', 'disableHealth', 'openHealthConnect', 'menuSheet', 'toast']) mocks[k].mockClear()
@@ -109,6 +112,18 @@ describe('Settings — Health Connect', () => {
     expect(mocks.enableHealth).toHaveBeenCalledTimes(1)
     expect(writeSwitch().getAttribute('aria-checked')).toBe('true')
     expect(row('Open Health Connect')).toBeTruthy()
+  })
+
+  it('uses the Apple Health workflow on iOS', async () => {
+    mocks.android = false
+    mocks.ios = true
+    await mount()
+    const switchRow = row('Write to Apple Health')
+    expect(row('Apple Health')).toBeTruthy()
+    expect(switchRow?.querySelector('[role="switch"]')?.getAttribute('aria-checked')).toBe('false')
+    await act(async () => { switchRow.querySelector('[role="switch"]').click() })
+    expect(mocks.enableHealth).toHaveBeenCalledTimes(1)
+    expect(row('Open Apple Health')).toBeTruthy()
   })
 
   it('turning it off asks whether to keep or remove what was written', async () => {

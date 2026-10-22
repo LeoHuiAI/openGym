@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, forwardRef, useSyncExternalStore } from 'react'
 import { useNavigate, useParams, useLocation, Navigate } from 'react-router-dom'
 import { useStore, DEF, hasData } from '../store/useStore.js'
-import { healthStatus, loadHealth, enableHealth, disableHealth, openHealthConnect, onHealthChange } from '../lib/health-sync.js'
+import { healthStatus, loadHealth, enableHealth, disableHealth, openHealthSettings, onHealthChange } from '../lib/health-sync.js'
 import { workoutControls } from '../lib/workout-controls.js'
 import { speedUnitOf } from '../lib/speed.js'
 import { formulaOf, FORMULA_NAMES } from '../lib/onerm.js'
@@ -23,6 +23,7 @@ import { t, tn, LANGS, INSTR_LANGS, EXERCISE_NAME_LANGS, baseLang, dateLocale } 
 import { effectiveLang } from '../lib/default-lang.js'
 import { DEMO, REPO } from '../lib/demo.js'
 import { MOBILE, isAndroid, shareExport, shareExportBlob, syncReminder } from '../lib/mobile.js'
+import * as mobile from '../lib/mobile.js'
 import { NUDGE_COPY, NUDGE_TONES, toneOf } from '../lib/nudge.js'
 import { referencedFiles } from '../lib/media-refs.js'
 import { mediaStore } from '../lib/media-store.js'
@@ -151,6 +152,7 @@ export default function Settings({ page = null, find = null, via = null }) {
   // --- update check state ---
   const [updateInfo, setUpdateInfo] = useState(null) // { hasUpdate, latestVersion, apkUrl, hashUrl } | null
   const [android, setAndroid] = useState(false)
+  const [ios, setIOS] = useState(false)
   const [checking, setChecking] = useState(false)
   // Where auto-backup writes on this Android phone, for the Auto-backup row's own subtitle.
   const [backupDir] = useBackupFolder(MOBILE && android && !!S.autoBackup)
@@ -162,7 +164,15 @@ export default function Settings({ page = null, find = null, via = null }) {
     // from even asking (and from calling GitHub on every Settings visit). Only the pages
     // that show it ask: the root (for nothing but `android`) skips the release check.
     if (!MOBILE) return
-    isAndroid().then(ok => { setAndroid(ok); if (ok && page === 'about') checkForUpdate().then(setUpdateInfo).catch(() => {}) })
+    let ios = false
+    try {
+      ios = typeof mobile.isIOS === 'function' ? Promise.resolve(mobile.isIOS()).catch(() => false) : false
+    } catch { /* older test/platform bridge */ }
+    Promise.all([isAndroid(), ios]).then(([a, i]) => {
+      setAndroid(a)
+      setIOS(i)
+      if (a && page === 'about') checkForUpdate().then(setUpdateInfo).catch(() => {})
+    })
   }, [page])
 
   // A search hit: scroll its row (or button) into view and flash it once. A row that shows only
@@ -784,7 +794,7 @@ export default function Settings({ page = null, find = null, via = null }) {
         {/* Android only: the system folder picker (#161). iOS shows Documents in Files already. */}
         {MOBILE && android && S.autoBackup && <BackupFolderRow />}
       </Section>
-      {MOBILE && android && <HealthConnectCard S={S} toast={toast} />}
+      {MOBILE && (android || ios) && <HealthCard S={S} toast={toast} provider={ios ? 'Apple Health' : 'Health Connect'} />}
       <Section title={t('Bring data in')}>
         <Row icon="download" iconTint="var(--teal)" title={t('Import backup')} accessory="chevron" onClick={() => fileRef.current.click()} />
         <Row icon="download" iconTint="var(--teal)" title={t('Import from another app')}
@@ -1428,15 +1438,24 @@ function RegisterInline({ close, setUser, pushState, pullState, toast }) {
   </>
 }
 
-// Android app: writing finished workouts and weigh-ins to Health Connect (#200), the phone's
-// own store for health data, where other apps can read them. A fact about this phone, kept in
-// its own file (lib/health-sync.js) and not in S, so it never switches on anywhere else. The card
-// stays out of the way on a phone without Health Connect, and only points to installing it on
-// Android 13 and lower, where it is an app of its own.
-function HealthConnectCard({ S, toast }) {
+// Mobile health provider: writing finished workouts and weigh-ins to the platform's own health store.
+// Android uses Health Connect and iOS uses Apple Health; the per-phone state lives in
+// lib/health-sync.js and never enters S, so it does not switch on anywhere else.
+function HealthCard({ S, toast, provider }) {
   const [st, setSt] = useState(null)
   const [h, setH] = useState(null)
   const [busy, setBusy] = useState(false)
+  // Apple Health has a small set of provider-specific translations. For the remaining shared
+  // copy, translate the Android source and swap its provider label so every locale stays useful.
+  const providerText = key => {
+    const source = key.replaceAll('Apple Health', 'Health Connect')
+    if (provider === 'Health Connect') return t(source)
+    const appleKey = key.replaceAll('Health Connect', 'Apple Health')
+    const translated = t(appleKey)
+    return translated !== appleKey
+      ? translated
+      : t(source).replaceAll(t('Health Connect'), t(provider))
+  }
   useEffect(() => {
     let gone = false
     Promise.all([healthStatus(), loadHealth()]).then(([s, f]) => { if (!gone) { setSt(s); setH(f) } }).catch(() => {})
@@ -1446,12 +1465,12 @@ function HealthConnectCard({ S, toast }) {
   if (!st || !h || st.status === 'unsupported') return null
 
   if (st.status !== 'available') return (
-    <Section title={t('Health Connect')}>
-      <Row icon="heart" iconTint="var(--red)" title={t('Health Connect')}
+    <Section title={t(provider)}>
+      <Row icon="heart" iconTint="var(--red)" title={t(provider)}
         subtitle={st.status === 'update'
-          ? t('Update Health Connect to share workouts and weigh-ins with other apps.')
-          : t('Install Health Connect to share workouts and weigh-ins with other apps.')}
-        accessory="chevron" onClick={() => openHealthConnect().catch(() => {})} />
+          ? providerText('Update Health Connect to share workouts and weigh-ins with other apps.')
+          : providerText('Install Health Connect to share workouts and weigh-ins with other apps.')}
+        accessory="chevron" onClick={() => openHealthSettings().catch(() => {})} />
     </Section>
   )
 
@@ -1461,21 +1480,21 @@ function HealthConnectCard({ S, toast }) {
       const r = await enableHealth(S)
       if (r.health) setH(r.health)
       else setH(await loadHealth())
-      if (r.ok) toast(t('Writing to Health Connect'))
-      else toast(r.reason === 'denied' ? t('Health Connect permission not granted') : t('Could not write to Health Connect'))
-    } catch { toast(t('Could not write to Health Connect')) }
+      if (r.ok) toast(providerText('Writing to Health Connect'))
+      else toast(r.reason === 'denied' ? providerText('Health Connect permission not granted') : providerText('Could not write to Health Connect'))
+    } catch { toast(providerText('Could not write to Health Connect')) }
     setBusy(false)
   }
   const turnOff = removeWritten => async () => {
     setBusy(true)
     try { setH(await disableHealth({ removeWritten })) }
-    catch { toast(t('Could not remove it from Health Connect')) }
+    catch { toast(providerText('Could not remove it from Health Connect')) }
     setBusy(false)
   }
   // Off can mean two things for what is already there, so it asks; closing the sheet keeps it on.
   const askOff = () => menuSheet({
-    title: t('Stop writing to Health Connect?'),
-    subtitle: t('What openGym already wrote can stay in Health Connect as your data, or be removed from it.'),
+    title: providerText('Stop writing to Health Connect?'),
+    subtitle: providerText('What openGym already wrote can stay in Health Connect as your data, or be removed from it.'),
     items: [
       { icon: 'check', label: t('Stop, keep what it wrote'), onClick: turnOff(false) },
       { icon: 'trash', label: t('Stop and remove what it wrote'), danger: true, onClick: turnOff(true) },
@@ -1483,16 +1502,16 @@ function HealthConnectCard({ S, toast }) {
   })
 
   return (
-    <Section title={t('Health Connect')}
-      footer={h.on ? t('Workouts and weigh-ins go to Health Connect when you finish or change them. openGym reads nothing back.') : null}>
-      <Row icon="heart" iconTint="var(--red)" title={t('Write to Health Connect')}
+    <Section title={t(provider)}
+      footer={h.on ? providerText('Workouts and weigh-ins go to Health Connect when you finish or change them. openGym reads nothing back.') : null}>
+      <Row icon="heart" iconTint="var(--red)" title={providerText('Write to Health Connect')}
         subtitle={t('Finished workouts and weigh-ins, from this phone only.')}>
         <Switch checked={!!h.on} disabled={busy} onChange={v => (v ? turnOn() : askOff())} />
       </Row>
       {h.on && h.error === 'permission' && <Row icon="warning" iconTint="var(--orange)"
         title={t('Permission withdrawn. Tap to allow again')} accessory="chevron" onClick={turnOn} />}
-      {h.on && <Row icon="list" iconTint="var(--blue)" title={t('Open Health Connect')}
-        accessory="chevron" onClick={() => openHealthConnect().catch(() => {})} />}
+      {h.on && <Row icon="list" iconTint="var(--blue)" title={providerText('Open Health Connect')}
+        accessory="chevron" onClick={() => openHealthSettings().catch(() => {})} />}
     </Section>
   )
 }

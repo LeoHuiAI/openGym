@@ -6,8 +6,9 @@
 // data directory, never in S, so it does not sync to a server, ride in a backup, or switch on a
 // second phone. Off until the user turns it on; nothing is asked of Health Connect before that.
 //
-// The web build never gets here (MOBILE is a build-time flag), and iOS answers 'unsupported'.
-import { MOBILE, isAndroid, readJsonFile, writeJsonFile } from './mobile.js'
+// The web build never gets here (MOBILE is a build-time flag); native platforms select their own
+// provider and an unavailable native response answers 'unsupported'.
+import { MOBILE, readJsonFile, writeJsonFile } from './mobile.js'
 import { healthRecords, planSync, writtenIds } from './health-connect.js'
 import { exerciseNameFor } from './i18n-core.js'
 import { EXIDX } from './exercises.js'
@@ -20,9 +21,12 @@ const OFF = { on: false, written: {}, at: 0, error: null }
 // promise resolved with the bare proxy never settles.
 let pluginP = null
 const plugin = () => pluginP || (pluginP = (async () => {
-  if (!(await isAndroid())) return null
-  const { registerPlugin } = await import('@capacitor/core')
-  return { HC: registerPlugin('HealthConnect') }
+  if (!MOBILE) return null
+  const { Capacitor, registerPlugin } = await import('@capacitor/core')
+  const platform = Capacitor.getPlatform()
+  if (platform === 'android') return { native: registerPlugin('HealthConnect'), provider: 'Health Connect' }
+  if (platform === 'ios') return { native: registerPlugin('HealthKit'), provider: 'Apple Health' }
+  return null
 })().catch(() => null))
 
 // The file's content, read once and then kept here: a save while it is off (the usual case) must
@@ -42,15 +46,22 @@ export async function healthStatus() {
   try {
     const p = await plugin()
     if (!p) return { status: 'unsupported', granted: false }
-    return await p.HC.status()
+    const st = await p.native.status()
+    // HealthKit has no install/update states: an unavailable native response means the provider
+    // cannot be used on this device, so keep the card hidden just like the web build.
+    if (p.provider === 'Apple Health' && st?.status !== 'available') return { status: 'unsupported', granted: false }
+    return st
   } catch { return { status: 'unsupported', granted: false } }
 }
 
-/** Health Connect's own screen for what apps wrote, or its store page where it is missing. */
-export async function openHealthConnect() {
+/** The native provider's own screen for what openGym wrote, or its store page where it is missing. */
+export async function openHealthSettings() {
   const p = await plugin()
-  if (p) await p.HC.openSettings()
+  if (p) await p.native.openSettings()
 }
+
+// Kept for callers outside Settings that still use the Android-specific name.
+export function openHealthConnect() { return openHealthSettings() }
 
 const nameOf = e => (EXIDX[e.id] ? exerciseNameFor(EXIDX[e.id]) : (e.n || e.id))
 
@@ -98,7 +109,7 @@ async function syncOnce(S, h) {
   if (nothing) {
     if (!h.error) return h
     // Nothing to write, but the last attempt failed: clear it once Health Connect says yes again.
-    const st = await p.HC.status().catch(() => null)
+    const st = await p.native.status().catch(() => null)
     if (!(st?.status === 'available' && st.granted)) return h
     const out = { ...h, error: null }
     await saveHealth(out)
@@ -108,12 +119,12 @@ async function syncOnce(S, h) {
   let out = { ...h }
   try {
     if (plan.sessions.length || plan.weights.length) {
-      await p.HC.write({ sessions: plan.sessions, weights: plan.weights })
+      await p.native.write({ sessions: plan.sessions, weights: plan.weights })
       // Written but not yet removed: kept as written, so a failed remove is tried again.
       const kept = Object.fromEntries(Object.entries(h.written).filter(([id]) => !plan.written[id]))
       out.written = { ...kept, ...plan.written }
     }
-    if (plan.remove.sessions.length || plan.remove.weights.length) await p.HC.remove(plan.remove)
+    if (plan.remove.sessions.length || plan.remove.weights.length) await p.native.remove(plan.remove)
     out = { ...out, written: plan.written, at: Date.now(), error: null }
   } catch (e) {
     out.error = e?.code === 'permission' ? 'permission' : e?.code === 'unavailable' ? 'unavailable' : 'failed'
@@ -131,9 +142,10 @@ async function syncOnce(S, h) {
 export async function enableHealth(S) {
   const p = await plugin()
   if (!p) return { ok: false, reason: 'unsupported' }
-  const st = await p.HC.status().catch(() => ({ status: 'unsupported' }))
+  const st = await p.native.status().catch(() => ({ status: 'unsupported' }))
+  if (p.provider === 'Apple Health' && st.status !== 'available') return { ok: false, reason: 'unsupported' }
   if (st.status !== 'available') return { ok: false, reason: st.status }
-  const granted = st.granted || (await p.HC.requestPermissions().catch(() => ({ granted: false }))).granted
+  const granted = st.granted || (await p.native.requestPermissions().catch(() => ({ granted: false }))).granted
   if (!granted) return { ok: false, reason: 'denied' }
   const h = await loadHealth()
   await saveHealth({ ...h, on: true, error: null })
@@ -154,7 +166,7 @@ export async function disableHealth({ removeWritten = false } = {}) {
     if (ids.sessions.length || ids.weights.length) {
       const p = await plugin()
       if (!p) throw new Error('unavailable')
-      await p.HC.remove(ids)
+      await p.native.remove(ids)
     }
   }
   const out = { ...h, on: false, error: null, written: removeWritten ? {} : h.written }

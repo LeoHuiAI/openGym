@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // (HealthConnectPlugin.java) and the app's data directory are played in memory.
 const h = vi.hoisted(() => {
   vi.stubEnv('VITE_MOBILE', '1')
-  return { files: new Map(), calls: [], status: { status: 'available', granted: false }, grant: true, fail: null }
+  return { files: new Map(), calls: [], registered: null, registerPlugin: vi.fn(), platform: 'android', status: { status: 'available', granted: false }, grant: true, fail: null }
 })
 
 vi.mock('@capacitor/filesystem', () => ({
@@ -20,16 +20,19 @@ vi.mock('@capacitor/filesystem', () => ({
 }))
 vi.mock('@capacitor/app', () => ({ App: { addListener: () => ({ remove() {} }) } }))
 vi.mock('@capacitor/core', () => ({
-  Capacitor: { getPlatform: () => 'android' },
-  registerPlugin: () => ({
-    status: async () => ({ ...h.status }),
-    requestPermissions: async () => { h.calls.push(['request']); h.status.granted = h.grant; return { granted: h.grant } },
-    write: async arg => {
-      h.calls.push(['write', arg])
-      if (h.fail) throw Object.assign(new Error('refused'), { code: h.fail })
-    },
-    remove: async arg => { h.calls.push(['remove', arg]) },
-    openSettings: async () => {},
+  Capacitor: { getPlatform: () => h.platform },
+  registerPlugin: h.registerPlugin.mockImplementation(name => {
+    h.registered = name
+    return {
+      status: async () => ({ ...h.status }),
+      requestPermissions: async () => { h.calls.push(['request']); h.status.granted = h.grant; return { granted: h.grant } },
+      write: async arg => {
+        h.calls.push(['write', arg])
+        if (h.fail) throw Object.assign(new Error('refused'), { code: h.fail })
+      },
+      remove: async arg => { h.calls.push(['remove', arg]) },
+      openSettings: async () => {},
+    }
   }),
 }))
 
@@ -44,7 +47,7 @@ const file = () => JSON.parse(h.files.get('opengym-health.json') || 'null')
 let hs
 beforeEach(async () => {
   vi.resetModules()
-  h.files.clear(); h.calls = []; h.status = { status: 'available', granted: false }; h.grant = true; h.fail = null
+  h.files.clear(); h.calls = []; h.registered = null; h.registerPlugin.mockClear(); h.platform = 'android'; h.status = { status: 'available', granted: false }; h.grant = true; h.fail = null
   hs = await import('./health-sync.js')
 })
 
@@ -83,6 +86,21 @@ describe('turning it on', () => {
   it('says so when Health Connect is not there', async () => {
     h.status = { status: 'missing', granted: false }
     expect(await hs.enableHealth(state([]))).toEqual({ ok: false, reason: 'missing' })
+  })
+  it('selects HealthKit on iOS and writes through the shared contract', async () => {
+    h.platform = 'ios'
+    expect(await hs.healthStatus()).toEqual({ status: 'available', granted: false })
+    expect(h.registerPlugin).toHaveBeenCalledWith('HealthKit')
+
+    const result = await hs.enableHealth(state([workout('w1', 17)]))
+    expect(result).toMatchObject({ ok: true })
+    expect(h.calls).toContainEqual(['write', expect.objectContaining({ sessions: expect.any(Array) })])
+  })
+  it('normalizes an unavailable iOS provider to unsupported', async () => {
+    h.platform = 'ios'
+    h.status = { status: 'missing', granted: false }
+    expect(await hs.healthStatus()).toEqual({ status: 'unsupported', granted: false })
+    expect(await hs.enableHealth(state([]))).toEqual({ ok: false, reason: 'unsupported' })
   })
 })
 

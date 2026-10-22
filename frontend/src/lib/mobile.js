@@ -33,6 +33,16 @@ export async function isAndroid() {
   }
 }
 
+export async function isIOS() {
+  if (!MOBILE) return false
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    return Capacitor.getPlatform() === 'ios'
+  } catch {
+    return false
+  }
+}
+
 const FILE = 'opengym-state.json'
 
 export async function nativeLoad() {

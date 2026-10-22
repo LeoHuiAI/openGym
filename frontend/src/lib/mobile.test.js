@@ -1,6 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+const platform = vi.hoisted(() => {
+  vi.stubEnv('VITE_MOBILE', '1')
+  return { value: 'web' }
+})
+vi.mock('@capacitor/core', () => ({ Capacitor: { getPlatform: () => platform.value } }))
+
 import { isoOf } from './format.js'
-import { buildReminderNotifications } from './mobile.js'
+import { buildReminderNotifications, isIOS } from './mobile.js'
 
 const push = { id: 'push', name: 'Push' }
 const pull = { id: 'pull', name: 'Pull' }
@@ -87,5 +94,16 @@ describe('buildReminderNotifications', () => {
     const waiting = buildReminderNotifications(state({ week: { 2: 'legs' }, queue: { ...queue, startsOn: iso(new Date(2026, 8, 9)) } }), now)
     expect(waiting[0].body).toContain('Legs')            // Tue: weekday plan
     expect(waiting[1].body).toContain('Push')            // Wed: startsOn — the queue takes over
+  })
+})
+
+describe('platform helpers', () => {
+  it('detects iOS only when Capacitor reports the iOS platform', async () => {
+    platform.value = 'ios'
+    expect(await isIOS()).toBe(true)
+    platform.value = 'android'
+    expect(await isIOS()).toBe(false)
+    platform.value = 'web'
+    expect(await isIOS()).toBe(false)
   })
 })

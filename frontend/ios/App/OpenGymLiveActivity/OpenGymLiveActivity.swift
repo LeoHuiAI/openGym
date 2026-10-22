@@ -101,7 +101,8 @@ private struct RestControls: View {
 }
 
 private func remainingText(_ milliseconds: Int64) -> String {
-    let seconds = max(0, Int((milliseconds + 999) / 1000))
+    let safeMilliseconds = max(0, milliseconds)
+    let seconds = safeMilliseconds / 1000 + (safeMilliseconds % 1000 == 0 ? 0 : 1)
     return String(format: "%02d:%02d", seconds / 60, seconds % 60)
 }
 

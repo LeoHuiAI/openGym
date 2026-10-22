@@ -36,8 +36,8 @@ enum RestActivityActionQueue {
     }
 
     static func append(type: String, endAt: Date?, leftMs: Int64, totalMs: Int64, paused: Bool) {
-        withLock {
-            guard let defaults = defaults else { return }
+        _ = withLock {
+            guard let defaults else { return }
             var actions = read(from: defaults)
             actions.append(Action(
                 type: type,
@@ -56,7 +56,7 @@ enum RestActivityActionQueue {
 
     /// Returns the queued dictionaries and clears the key while holding the cross-process lock.
     static func consume() -> [[String: Any]] {
-        withLock {
+        return withLock {
             guard let defaults else { return [] }
             let data = defaults.data(forKey: key)
             defaults.removeObject(forKey: key)
@@ -66,7 +66,7 @@ enum RestActivityActionQueue {
                 return []
             }
             return actions
-        }
+        } ?? []
     }
 
     private static var defaults: UserDefaults? {
@@ -81,28 +81,24 @@ enum RestActivityActionQueue {
         return actions
     }
 
-    private static func withLock<T>(_ body: () -> T) -> T {
+    private static func withLock<T>(_ body: () -> T) -> T? {
         processLock.lock()
         defer { processLock.unlock() }
 
         guard let container = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: appGroup
         ) else {
-            return body()
+            return nil
         }
 
         let lockURL = container.appendingPathComponent(lockFileName)
         let coordinator = NSFileCoordinator(filePresenter: nil)
-        var result: T!
+        var result: T?
         var coordinationError: NSError?
         coordinator.coordinate(writingItemAt: lockURL, options: [], error: &coordinationError) { _ in
             result = body()
         }
-        // An unavailable coordinator should not strand a button action. The process lock still
-        // serializes calls within the current process, and UserDefaults itself remains durable.
-        if coordinationError != nil || result == nil {
-            return body()
-        }
+        guard coordinationError == nil else { return nil }
         return result
     }
 }

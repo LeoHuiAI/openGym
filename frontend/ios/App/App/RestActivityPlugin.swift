@@ -6,6 +6,9 @@ import Foundation
 @objc(RestActivityPlugin)
 public class RestActivityPlugin: CAPPlugin {
 
+    private static let maxTimerMilliseconds: Double = 7 * 24 * 60 * 60 * 1000
+    private static let maxEpochMilliseconds: Double = 4_102_444_800_000 // 2100-01-01
+
     @objc func start(_ call: CAPPluginCall) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
             call.reject("Live Activities are disabled", "unavailable")
@@ -16,6 +19,9 @@ public class RestActivityPlugin: CAPPlugin {
             let id = try requiredString(call, "id")
             let title = try requiredString(call, "title")
             let endAt = try requiredDate(call, "endAt")
+            guard endAt > Date() else {
+                throw PluginError.invalid("endAt must be in the future")
+            }
             let totalMs = try requiredMilliseconds(call, "totalMs")
             let accent = color(call, "accent") ?? "#34C759"
             let ink = color(call, "ink") ?? "#FFFFFF"
@@ -67,6 +73,7 @@ public class RestActivityPlugin: CAPPlugin {
             let totalMs = try requiredMilliseconds(call, "totalMs")
             let leftMs = try requiredMilliseconds(call, "leftMs")
             let paused = call.getBool("paused") ?? false
+            let runningEndAt = try futureEndAt(endAt, paused: paused)
             let accent = color(call, "accent")
             let ink = color(call, "ink")
 
@@ -76,7 +83,7 @@ public class RestActivityPlugin: CAPPlugin {
                     return
                 }
                 var state = activity.content.state
-                state.endAt = paused ? nil : endAt
+                state.endAt = runningEndAt
                 state.leftMs = max(0, leftMs)
                 state.totalMs = max(0, totalMs)
                 state.paused = paused
@@ -123,6 +130,7 @@ public class RestActivityPlugin: CAPPlugin {
             let endAt = try optionalDate(call, "endAt")
             let totalMs = try requiredMilliseconds(call, "totalMs")
             let leftMs = try requiredMilliseconds(call, "leftMs")
+            let runningEndAt = try futureEndAt(endAt, paused: paused)
 
             Task {
                 guard let activity = activeActivity(for: id) else {
@@ -130,7 +138,7 @@ public class RestActivityPlugin: CAPPlugin {
                     return
                 }
                 var state = activity.content.state
-                state.endAt = paused ? nil : endAt
+                state.endAt = runningEndAt
                 state.leftMs = max(0, leftMs)
                 state.totalMs = max(0, totalMs)
                 state.paused = paused
@@ -157,15 +165,15 @@ public class RestActivityPlugin: CAPPlugin {
 
     private func requiredMilliseconds(_ call: CAPPluginCall, _ key: String) throws -> Int64 {
         guard let value = number(call, key), value.isFinite,
-              value >= 0, value <= Double(Int64.max) else {
-            throw PluginError.invalid("\(key) must be a non-negative number")
+              value >= 0, value <= Self.maxTimerMilliseconds else {
+            throw PluginError.invalid("\(key) must be a non-negative duration no longer than seven days")
         }
         return Int64(value.rounded())
     }
 
     private func requiredDate(_ call: CAPPluginCall, _ key: String) throws -> Date {
         guard let value = number(call, key), value.isFinite, value > 0,
-              value <= Double(Int64.max) else {
+              value <= Self.maxEpochMilliseconds else {
             throw PluginError.invalid("\(key) must be an epoch time in milliseconds")
         }
         return Date(timeIntervalSince1970: value / 1000)
@@ -173,10 +181,18 @@ public class RestActivityPlugin: CAPPlugin {
 
     private func optionalDate(_ call: CAPPluginCall, _ key: String) throws -> Date? {
         guard let value = number(call, key) else { return nil }
-        guard value.isFinite, value >= 0, value <= Double(Int64.max) else {
+        guard value.isFinite, value >= 0, value <= Self.maxEpochMilliseconds else {
             throw PluginError.invalid("\(key) must be an epoch time in milliseconds")
         }
         return value > 0 ? Date(timeIntervalSince1970: value / 1000) : nil
+    }
+
+    private func futureEndAt(_ endAt: Date?, paused: Bool) throws -> Date? {
+        guard !paused else { return nil }
+        guard let endAt, endAt > Date() else {
+            throw PluginError.invalid("endAt must be in the future while running")
+        }
+        return endAt
     }
 
     private func number(_ call: CAPPluginCall, _ key: String) -> Double? {

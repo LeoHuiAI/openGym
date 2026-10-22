@@ -47,6 +47,7 @@
 		AA0600000000000000000009 /* OpenGymLiveActivityBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenGymLiveActivityBundle.swift; sourceTree = "<group>"; };
 		AA0600000000000000000011 /* RestActivityIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestActivityIntents.swift; sourceTree = "<group>"; };
 		AA0600000000000000000013 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AA0600000000000000000015 /* OpenGymLiveActivity.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = OpenGymLiveActivity.entitlements; sourceTree = "<group>"; };
 		AA0600000000000000000016 /* OpenGymLiveActivity.appex */ = {isa = PBXFileReference; explicitFileType = wrapper.app-extension; includeInIndex = 0; path = OpenGymLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA0100000000000000000009 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
 		504EC30C1FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
@@ -150,6 +151,7 @@
 				AA0600000000000000000009 /* OpenGymLiveActivityBundle.swift */,
 				AA0600000000000000000011 /* RestActivityIntents.swift */,
 				AA0600000000000000000013 /* Info.plist */,
+				AA0600000000000000000015 /* OpenGymLiveActivity.entitlements */,
 			);
 			path = OpenGymLiveActivity;
 			sourceTree = "<group>";
@@ -524,7 +526,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
+				CODE_SIGN_ENTITLEMENTS = OpenGymLiveActivity/OpenGymLiveActivity.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 26;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -545,7 +547,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
+				CODE_SIGN_ENTITLEMENTS = OpenGymLiveActivity/OpenGymLiveActivity.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 26;
 				GENERATE_INFOPLIST_FILE = NO;

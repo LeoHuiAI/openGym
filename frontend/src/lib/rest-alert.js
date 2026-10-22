@@ -11,7 +11,7 @@
 import { t } from './i18n-core.js'
 import { argb } from './format.js'
 import { accentPair } from './accent.js'
-import { MOBILE, isAndroid } from './mobile.js'
+import { MOBILE, isAndroid, isIOS } from './mobile.js'
 import { REST_SOUNDS } from './rest-sounds.js'
 
 export const REST_ALERT_ID = 42
@@ -81,17 +81,24 @@ const enqueue = fn => {
 // The native plugin, registered once: registerPlugin() warns on every call after the first. It
 // travels inside an object because a Capacitor plugin proxy answers `then` with a native call that
 // never settles, so a promise resolved with the bare proxy hangs for good (the Coach hang, #42).
-// Anything but the Android app gets null and registers nothing: iOS has no RestAlert, and every
-// call to it there, addListener included, rejects.
+// The Android alarm and iOS Live Activity are selected by platform. Web keeps the server push
+// fallback, and neither native bridge is registered in the web build.
 let pluginP = null
 const restPlugin = () => pluginP || (pluginP = (async () => {
-  if (!(await isAndroid())) return null
-  const { registerPlugin } = await import('@capacitor/core')
-  return { RestAlert: registerPlugin('RestAlert') }
+  if (await isAndroid()) {
+    const { registerPlugin } = await import('@capacitor/core')
+    return { platform: 'android', native: registerPlugin('RestAlert') }
+  }
+  if (await isIOS()) {
+    const { registerPlugin } = await import('@capacitor/core')
+    return { platform: 'ios', native: registerPlugin('RestActivity') }
+  }
+  return null
 })().catch(() => null))
+let iosActivity = null
 
-// Resolves true only when an Android alarm was scheduled. Callers use false as
-// "fall back to the server push" — web, iOS, and a failed schedule.
+// Resolves true when an Android alarm or iOS Live Activity is armed. Callers use false as
+// "fall back to the server push" — web and a failed native schedule.
 export function armRestAlert(at, opts = {}) {
   if (!MOBILE) return Promise.resolve(false)
   const mine = ++token
@@ -105,7 +112,7 @@ export function armRestAlert(at, opts = {}) {
     let kind = 'failed'
     try { kind = await deliver(alert) } catch { kind = 'failed' }
     if (mine !== token) return false
-    return kind === 'android'
+    return kind === 'android' || kind === 'ios'
   })
 }
 
@@ -125,19 +132,41 @@ export function holdRestAlert(leftSec, totalSec) {
   if (!MOBILE) return
   enqueue(async () => {
     const p = await restPlugin()
-    if (p) await p.RestAlert.hold({ id: REST_ALERT_ID, leftMs: Math.max(1, leftSec) * 1000, totalMs: Math.max(1, totalSec) * 1000 })
+    if (!p) return
+    const leftMs = Math.max(1, leftSec) * 1000
+    const totalMs = Math.max(1, totalSec) * 1000
+    if (p.platform === 'android') {
+      await p.native.hold({ id: REST_ALERT_ID, leftMs, totalMs })
+      return
+    }
+    await p.native.pause({ id: REST_ALERT_ID, endAt: 0, leftMs, totalMs })
+    if (iosActivity) iosActivity = { ...iosActivity, endAt: 0, leftMs, totalMs, paused: true }
   })
 }
 
 // What the notification's own buttons did (pause, ±15s, skip), for useUI to mirror in the bar.
 let onNativeRest = null
 export function bindNativeRest(cb) { onNativeRest = cb }
+const emitNativeRest = ev => { if (onNativeRest) onNativeRest(ev) }
 
-// Caught, and only on Android: in the iOS app this listener used to reject at startup with
-// nobody to catch it.
+// Native actions are emitted when the WebView becomes active again. The App Group queue is cleared
+// by the native plugin only after it has returned the action payload to this bridge.
 if (MOBILE) {
   restPlugin()
-    .then(p => p && p.RestAlert.addListener('rest', ev => { if (onNativeRest) onNativeRest(ev) }))
+    .then(async p => {
+      if (!p) return
+      if (p.platform === 'android') {
+        await p.native.addListener('rest', emitNativeRest)
+        return
+      }
+      const { App } = await import('@capacitor/app')
+      await App.addListener('appStateChange', ({ isActive }) => {
+        if (!isActive) return
+        p.native.consumeActions()
+          .then(result => (result?.actions || []).forEach(emitNativeRest))
+          .catch(() => {})
+      })
+    })
     .catch(() => {})
 }
 
@@ -149,7 +178,10 @@ export function buzzAsAlarm(pattern) {
   const p = Array.isArray(pattern) ? pattern.filter(n => Number.isFinite(n) && n >= 0).map(Math.round) : (Number.isFinite(pattern) && pattern > 0 ? [Math.round(pattern)] : [])
   if (!p.length) return Promise.resolve(false)
   return restPlugin()
-    .then(plugin => (plugin ? plugin.RestAlert.buzz({ pattern: p }).then(() => true) : false))
+    .then(plugin => {
+      if (plugin?.platform !== 'android') return false
+      return plugin.native.buzz({ pattern: p }).then(() => true)
+    })
     .catch(() => false)
 }
 
@@ -159,7 +191,10 @@ export function buzzAsAlarm(pattern) {
 export function toneNative(kind) {
   if (!MOBILE) return Promise.resolve(false)
   return restPlugin()
-    .then(plugin => (plugin ? plugin.RestAlert.tone({ kind: String(kind || 'chime') }).then(() => true) : false))
+    .then(plugin => {
+      if (plugin?.platform !== 'android') return false
+      return plugin.native.tone({ kind: String(kind || 'chime') }).then(() => true)
+    })
     .catch(() => false)
 }
 
@@ -169,7 +204,13 @@ export function setRestAccent(key) {
   const { accent, ink } = accentColors(key)
   enqueue(async () => {
     const p = await restPlugin()
-    if (p) await p.RestAlert.setAccent({ accent, ink })
+    if (p?.platform === 'android') {
+      await p.native.setAccent({ accent, ink })
+    } else if (p?.platform === 'ios' && iosActivity) {
+      const next = { ...iosActivity, accent, ink }
+      await p.native.update(next)
+      iosActivity = next
+    }
   })
 }
 
@@ -185,7 +226,7 @@ export function askNotifPermissionOnce() {
   if (askP) return askP
   askP = (async () => {
     try {
-      if (!(await isAndroid())) return false
+      if (!(await isAndroid()) && !(await isIOS())) return false
       const { LocalNotifications } = await import('@capacitor/local-notifications')
       const perm = await LocalNotifications.checkPermissions()
       if (perm.display === 'granted') return true
@@ -213,19 +254,35 @@ async function deliver(alert) {
   if (!(alert.at > Date.now())) return 'expired'
   const p = await restPlugin()
   if (!p) return 'skipped'
-  const { RestAlert } = p
   if (!(alert.at > Date.now())) return 'expired'
+
+  if (p.platform === 'ios') {
+    const activity = {
+      id: alert.id,
+      title: alert.title,
+      countdownTitle: alert.countdownTitle,
+      endAt: alert.at,
+      totalMs: alert.totalMs,
+      leftMs: alert.totalMs,
+      paused: false,
+      accent: alert.accent,
+      ink: alert.ink,
+    }
+    await p.native.start(activity)
+    iosActivity = activity
+    return 'ios'
+  }
+
+  const { native } = p
   // Sound, the alarm buzz and the alarm itself need no notification permission; only the
   // countdown card does, and askNotifPermissionOnce() asks for it on the side.
-  await RestAlert.schedule({
+  await native.schedule({
     id: alert.id,
     at: alert.at,
     title: alert.title,
     sound: alert.sound,
     classic: alert.classic,
     tone: alert.tone,
-    // The end of a rest the app is not in front for: the notification, or the buzz standing in
-    // for it where notifications are off. With the app in front the page buzzes (lib/sound.js).
     vibrate: alert.vibrate,
     alarmBuzz: alert.alarmBuzz,
     channelId: alert.channelId,
@@ -247,5 +304,7 @@ async function deliver(alert) {
 
 async function cancelDelivered() {
   const p = await restPlugin()
-  if (p) await p.RestAlert.cancel({ id: REST_ALERT_ID })
+  if (!p) return
+  await p.native.cancel({ id: REST_ALERT_ID })
+  if (p.platform === 'ios') iosActivity = null
 }

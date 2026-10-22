@@ -10,7 +10,7 @@ const h = vi.hoisted(() => {
   vi.stubEnv('VITE_MOBILE', '1')   // lib/mobile.js: MOBILE = import.meta.env.VITE_MOBILE === '1'
   const store = new Map()
   vi.stubGlobal('localStorage', { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), clear: () => store.clear() })
-  return { platform: 'android', calls: [], registerPlugin: null, perm: 'granted', request: null }
+  return { platform: 'android', calls: [], args: [], registerPlugin: null, perm: 'granted', request: null, appListener: null, actions: [] }
 })
 
 // Shaped like the proxy registerPlugin() returns: every property is a native method, `then`
@@ -21,8 +21,11 @@ const pluginProxy = () => new Proxy({}, {
     if (prop === 'then') return () => new Promise(() => {})
     return (...args) => {
       h.calls.push(String(prop))
-      if (h.platform !== 'android') return Promise.reject(new Error(`"RestAlert.${String(prop)}()" is not implemented on ${h.platform}`))
-      return Promise.resolve(prop === 'addListener' ? { remove: async () => {} } : undefined)
+      h.args.push({ method: String(prop), args })
+      if (h.platform !== 'android' && h.platform !== 'ios') return Promise.reject(new Error(`plugin is not implemented on ${h.platform}`))
+      if (prop === 'addListener') return Promise.resolve({ remove: async () => {} })
+      if (prop === 'consumeActions') return Promise.resolve({ actions: h.actions })
+      return Promise.resolve(undefined)
     }
   },
 })
@@ -30,6 +33,15 @@ const pluginProxy = () => new Proxy({}, {
 vi.mock('@capacitor/core', () => ({
   Capacitor: { getPlatform: () => h.platform },
   registerPlugin: (...args) => h.registerPlugin(...args),
+}))
+vi.mock('@capacitor/app', () => ({
+  App: {
+    addListener: async (name, cb) => {
+      h.calls.push(`app.${name}`)
+      h.appListener = cb
+      return { remove: async () => {} }
+    },
+  },
 }))
 vi.mock('@capacitor/local-notifications', () => ({
   LocalNotifications: {
@@ -46,11 +58,15 @@ const onUnhandled = reason => unhandled.push(reason)
 beforeEach(() => {
   vi.resetModules()
   h.calls = []
+  h.args = []
+  h.appListener = null
+  h.actions = []
   h.registerPlugin = vi.fn(() => pluginProxy())
   h.perm = 'granted'
   h.request = null
   localStorage.clear()
   unhandled.length = 0
+  process.off('unhandledRejection', onUnhandled)
   process.on('unhandledRejection', onUnhandled)
 })
 afterAll(() => {
@@ -59,17 +75,36 @@ afterAll(() => {
 })
 
 describe('the rest alert in the iOS app', () => {
-  it('registers nothing, rejects nothing and leaves the end to the server push', async () => {
+  it('starts an ActivityKit rest and mirrors pause, accent, and cancel', async () => {
     h.platform = 'ios'
     const alert = await import('./rest-alert.js')
-    await expect(alert.armRestAlert(Date.now() + 90_000, { totalSec: 90 })).resolves.toBe(false)
+    const at = Date.now() + 90_000
+    await expect(alert.armRestAlert(at, { totalSec: 90, title: 'Rest over', countdownTitle: 'Rest', accent: 'red' })).resolves.toBe(true)
+    await settle()
+    expect(h.registerPlugin).toHaveBeenCalledWith('RestActivity')
+    expect(h.calls).toContain('app.appStateChange')
+    expect(h.args.find(x => x.method === 'start').args[0]).toMatchObject({ id: 42, endAt: at, totalMs: 90_000, title: 'Rest over' })
+
     alert.holdRestAlert(60, 90)
-    alert.setRestAccent('red')
+    alert.setRestAccent('blue')
     alert.disarmRestAlert()
     await settle()
-    expect(h.registerPlugin).not.toHaveBeenCalled()
-    expect(h.calls).toEqual([])
+    expect(h.args.find(x => x.method === 'pause').args[0]).toMatchObject({ id: 42, leftMs: 60_000, totalMs: 90_000 })
+    expect(h.args.find(x => x.method === 'update').args[0]).toMatchObject({ id: 42 })
+    expect(h.args.find(x => x.method === 'cancel').args[0]).toEqual({ id: 42 })
     expect(unhandled).toEqual([])
+  })
+
+  it('consumes lock-screen actions on foreground and emits the existing event shape', async () => {
+    h.platform = 'ios'
+    h.actions = [{ type: 'adjust', endsAt: Date.now() + 45_000, leftMs: 45_000, totalMs: 90_000, paused: false }, { type: 'skip', endsAt: 0, leftMs: 0, totalMs: 90_000, paused: false }]
+    const alert = await import('./rest-alert.js')
+    const received = []
+    alert.bindNativeRest(ev => received.push(ev))
+    await settle()
+    await h.appListener?.({ isActive: true })
+    expect(received).toEqual(h.actions)
+    expect(h.calls).toContain('consumeActions')
   })
 })
 
@@ -166,11 +201,12 @@ describe('the alarm buzz in the Android app', () => {
     expect(calls.buzz).toHaveLength(1)
   })
 
-  it('answers false in the iOS app without touching any plugin', async () => {
+  it('answers false in the iOS app without using an alarm buzz', async () => {
     h.platform = 'ios'
     const alert = await import('./rest-alert.js')
     await expect(alert.buzzAsAlarm([200, 100, 200])).resolves.toBe(false)
-    expect(h.registerPlugin).not.toHaveBeenCalled()
+    expect(h.registerPlugin).toHaveBeenCalledWith('RestActivity')
+    expect(h.calls).not.toContain('buzz')
     expect(unhandled).toEqual([])
   })
 })

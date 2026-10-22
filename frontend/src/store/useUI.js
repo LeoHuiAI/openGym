@@ -298,8 +298,8 @@ export const useUI = create((set, get) => ({
   },
   // Holding the rest where it is — a longer break than planned, a machine to wait for, a phone
   // call (#193). Paused time does not count: the countdown stops, and so does everything that
-  // would announce its end — the server's push and the alert this tab shows are cancelled, not
-  // left to fire at the old time, and the Android notification stops its clock at the same time
+  // would announce its end — the server's push and the native rest activity/notification this tab shows are cancelled, not
+  // left to fire at the old time, and the native notification/activity stops its clock at the same time
   // with its alarm called off. The timed hold is a different timer and is not touched.
   pauseRest() {
     const tm = get().timer
@@ -529,7 +529,7 @@ export function restoreWork(now = Date.now()) {
 useUI.subscribe((s, prev) => { if (s.work !== prev.work && (!s.work || !prev.work || s.work.owner !== prev.work.owner || s.work.endsAt !== prev.work.endsAt || s.work.alerted !== prev.work.alerted)) saveWork(s.work) })
 restoreWork()
 
-// Buttons on the rest notification (pause, ±15s, skip) change the countdown in the
+// Buttons on the native rest activity/notification (pause, ±15s, skip) change the countdown in the
 // service first, then mirror that into the in-app timer. skip ends it. Seconds round up, as the
 // notification's clock does, so a pause in the last half second still holds a second here.
 bindNativeRest(ev => {

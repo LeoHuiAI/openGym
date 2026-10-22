@@ -6,7 +6,7 @@
 	<true/>
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.ch.duartesantos.opengym</string>
+		<string>group.com.penghui.opengym</string>
 	</array>
 </dict>
 </plist>

@@ -22,7 +22,7 @@ struct RestActivityAttributes: ActivityAttributes {
 /// extension). A lock file in the group container makes the read/clear operation exclusive across
 /// the two processes; the NSLock is the fast path for concurrent calls in one process.
 enum RestActivityActionQueue {
-    static let appGroup = "group.ch.duartesantos.opengym"
+    static let appGroup = "group.com.penghui.opengym"
     static let key = "restActivityActions"
     private static let processLock = NSLock()
     private static let lockFileName = ".restActivityActions.lock"

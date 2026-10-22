@@ -50,7 +50,8 @@ public class HealthKitPlugin: CAPPlugin {
         call.resolve(["status": "available", "granted": hasWriteAuthorization()])
     }
 
-    @objc func requestPermissions(_ call: CAPPluginCall) {
+    // CAPPlugin already declares requestPermissions:, so this must be a public override.
+    @objc public override func requestPermissions(_ call: CAPPluginCall) {
         guard HKHealthStore.isHealthDataAvailable() else {
             call.reject("HealthKit is not available", "unavailable")
             return

@@ -27,7 +27,7 @@ enum RestActivityActionQueue {
     private static let processLock = NSLock()
     private static let lockFileName = ".restActivityActions.lock"
 
-    private struct Action: Codable {
+    struct RestActivityAction: Codable, Equatable {
         let type: String
         let endsAt: Int64
         let leftMs: Int64
@@ -35,21 +35,39 @@ enum RestActivityActionQueue {
         let paused: Bool
     }
 
+    static func epochMilliseconds(_ date: Date?) -> Int64 {
+        guard let date else { return 0 }
+        return Int64((date.timeIntervalSince1970 * 1000).rounded())
+    }
+
+    static func makeAction(type: String, endAt: Date?, leftMs: Int64, totalMs: Int64, paused: Bool) -> RestActivityAction {
+        RestActivityAction(
+            type: type,
+            endsAt: epochMilliseconds(endAt),
+            leftMs: max(0, leftMs),
+            totalMs: max(0, totalMs),
+            paused: paused
+        )
+    }
+
+    static func bounded(_ actions: [RestActivityAction], limit: Int = 20) -> [RestActivityAction] {
+        let keep = max(0, limit)
+        return actions.count > keep ? Array(actions.suffix(keep)) : actions
+    }
+
     static func append(type: String, endAt: Date?, leftMs: Int64, totalMs: Int64, paused: Bool) {
         _ = withLock {
             guard let defaults else { return }
             var actions = read(from: defaults)
-            actions.append(Action(
+            actions.append(RestActivityActionQueue.makeAction(
                 type: type,
-                endsAt: endAt.map { Int64(($0.timeIntervalSince1970 * 1000).rounded()) } ?? 0,
-                leftMs: max(0, leftMs),
-                totalMs: max(0, totalMs),
+                endAt: endAt,
+                leftMs: leftMs,
+                totalMs: totalMs,
                 paused: paused
             ))
-            if actions.count > 20 {
-                actions.removeFirst(actions.count - 20)
-            }
-            guard let data = try? JSONEncoder().encode(actions) else { return }
+            let data = try? JSONEncoder().encode(RestActivityActionQueue.bounded(actions))
+            guard let data else { return }
             defaults.set(data, forKey: key)
         }
     }
@@ -73,9 +91,9 @@ enum RestActivityActionQueue {
         UserDefaults(suiteName: appGroup)
     }
 
-    private static func read(from defaults: UserDefaults) -> [Action] {
+    private static func read(from defaults: UserDefaults) -> [RestActivityAction] {
         guard let data = defaults.data(forKey: key),
-              let actions = try? JSONDecoder().decode([Action].self, from: data) else {
+              let actions = try? JSONDecoder().decode([RestActivityAction].self, from: data) else {
             return []
         }
         return actions

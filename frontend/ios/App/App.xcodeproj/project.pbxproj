@@ -28,6 +28,9 @@
 		AA0600000000000000000012 /* OpenGymLiveActivityBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0600000000000000000009 /* OpenGymLiveActivityBundle.swift */; };
 		AA0600000000000000000014 /* RestActivityIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0600000000000000000011 /* RestActivityIntents.swift */; };
 		AA0600000000000000000041 /* OpenGymLiveActivity.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AA0600000000000000000016 /* OpenGymLiveActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		AA0700000000000000000001 /* HealthKitPluginTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0700000000000000000005 /* HealthKitPluginTests.swift */; };
+		AA0700000000000000000003 /* RestActivityPluginTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0700000000000000000007 /* RestActivityPluginTests.swift */; };
+		AA0700000000000000000009 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA070000000000000000000B /* XCTest.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -58,6 +61,10 @@
 		AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
 		FC68EB0AF532CFC21C3344DD /* Pods-App.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.debug.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.debug.xcconfig"; sourceTree = "<group>"; };
+		AA0700000000000000000005 /* HealthKitPluginTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitPluginTests.swift; sourceTree = "<group>"; };
+		AA0700000000000000000007 /* RestActivityPluginTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestActivityPluginTests.swift; sourceTree = "<group>"; };
+		AA0700000000000000000011 /* AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA070000000000000000000B /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = System/Library/Frameworks/XCTest.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -89,6 +96,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AA0700000000000000000021 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA0700000000000000000009 /* XCTest.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -96,6 +111,7 @@
 			isa = PBXGroup;
 			children = (
 				AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */,
+				AA070000000000000000000B /* XCTest.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -105,6 +121,7 @@
 			children = (
 				504EC3061FED79650016851F /* App */,
 				AA0600000000000000000040 /* OpenGymLiveActivity */,
+				AA0700000000000000000013 /* AppTests */,
 				504EC3051FED79650016851F /* Products */,
 				7F8756D8B27F46E3366F6CEA /* Pods */,
 				27E2DDA53C4D2A4D1A88CE4A /* Frameworks */,
@@ -116,6 +133,7 @@
 			children = (
 				504EC3041FED79650016851F /* App.app */,
 				AA0600000000000000000016 /* OpenGymLiveActivity.appex */,
+				AA0700000000000000000011 /* AppTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -154,6 +172,15 @@
 				AA0600000000000000000015 /* OpenGymLiveActivity.entitlements */,
 			);
 			path = OpenGymLiveActivity;
+			sourceTree = "<group>";
+		};
+		AA0700000000000000000013 /* AppTests */ = {
+			isa = PBXGroup;
+			children = (
+				AA0700000000000000000005 /* HealthKitPluginTests.swift */,
+				AA0700000000000000000007 /* RestActivityPluginTests.swift */,
+			);
+			path = AppTests;
 			sourceTree = "<group>";
 		};
 		7F8756D8B27F46E3366F6CEA /* Pods */ = {
@@ -206,6 +233,24 @@
 			productReference = AA0600000000000000000016 /* OpenGymLiveActivity.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		AA0700000000000000000030 /* AppTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA0700000000000000000031 /* Build configuration list for PBXNativeTarget "AppTests" */;
+			buildPhases = (
+				AA0700000000000000000020 /* Sources */,
+				AA0700000000000000000021 /* Frameworks */,
+				AA0700000000000000000022 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AA0700000000000000000041 /* App target dependency */,
+			);
+			name = AppTests;
+			productName = AppTests;
+			productReference = AA0700000000000000000011 /* AppTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXContainerItemProxy section */
@@ -216,6 +261,13 @@
 			remoteGlobalIDString = AA0600000000000000000030;
 			remoteInfo = OpenGymLiveActivity;
 		};
+		AA0700000000000000000040 /* App target container proxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 504EC3031FED79650016851F;
+			remoteInfo = App;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXTargetDependency section */
@@ -223,6 +275,11 @@
 			isa = PBXTargetDependency;
 			target = AA0600000000000000000030 /* OpenGymLiveActivity */;
 			targetProxy = AA0600000000000000000044 /* Container proxy */;
+		};
+		AA0700000000000000000041 /* App target dependency */ = {
+			isa = PBXTargetDependency;
+			target = 504EC3031FED79650016851F /* App */;
+			targetProxy = AA0700000000000000000040 /* App target container proxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -241,6 +298,10 @@
 					AA0600000000000000000030 = {
 						CreatedOnToolsVersion = 2620;
 						ProvisioningStyle = Automatic;
+					};
+					AA0700000000000000000030 = {
+						CreatedOnToolsVersion = 2620;
+						TestTargetID = 504EC3031FED79650016851F;
 					};
 				};
 			};
@@ -261,6 +322,7 @@
 			targets = (
 				504EC3031FED79650016851F /* App */,
 				AA0600000000000000000030 /* OpenGymLiveActivity */,
+				AA0700000000000000000030 /* AppTests */,
 			);
 		};
 /* End PBXProject section */
@@ -280,6 +342,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		AA0600000000000000000021 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA0700000000000000000022 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -349,6 +418,15 @@
 				AA0600000000000000000010 /* OpenGymLiveActivity.swift in Sources */,
 				AA0600000000000000000012 /* OpenGymLiveActivityBundle.swift in Sources */,
 				AA0600000000000000000014 /* RestActivityIntents.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA0700000000000000000020 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA0700000000000000000001 /* HealthKitPluginTests.swift in Sources */,
+				AA0700000000000000000003 /* RestActivityPluginTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -563,6 +641,38 @@
 			};
 			name = Release;
 		};
+		AA0700000000000000000032 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 26;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ch.duartesantos.opengym.AppTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/App.app/App";
+			};
+			name = Debug;
+		};
+		AA0700000000000000000033 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 26;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ch.duartesantos.opengym.AppTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/App.app/App";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -589,6 +699,15 @@
 			buildConfigurations = (
 				AA0600000000000000000032 /* Debug */,
 				AA0600000000000000000033 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA0700000000000000000031 /* Build configuration list for PBXNativeTarget "AppTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0700000000000000000032 /* Debug */,
+				AA0700000000000000000033 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

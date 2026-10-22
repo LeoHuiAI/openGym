@@ -23,6 +23,25 @@ public class HealthKitPlugin: CAPPlugin {
     private static let titleMetadataKey = "ch.duartesantos.opengym.title"
     private static let notesMetadataKey = "ch.duartesantos.opengym.notes"
 
+    // Pure conversion seams are internal so the AppTests target can verify the shared contract
+    // without requesting HealthKit permission or saving a real sample.
+    static func activityType(for value: String?) -> HKWorkoutActivityType {
+        switch value {
+        case "strength_training": return .traditionalStrengthTraining
+        case "walking": return .walking
+        case "running": return .running
+        case "biking_stationary": return .cycling
+        case "elliptical": return .elliptical
+        case "stair_climbing_machine": return .stairClimbing
+        case "other_workout": return .other
+        default: return .other
+        }
+    }
+
+    static func bodyMassQuantity(for kilograms: Double) -> HKQuantity {
+        HKQuantity(unit: HKUnit.gramUnit(with: .kilo), doubleValue: kilograms)
+    }
+
     @objc func status(_ call: CAPPluginCall) {
         guard HKHealthStore.isHealthDataAvailable() else {
             call.resolve(["status": "unsupported", "granted": false])
@@ -150,7 +169,7 @@ public class HealthKitPlugin: CAPPlugin {
         }
 
         return HKWorkout(
-            activityType: activityType(for: record["type"] as? String),
+            activityType: Self.activityType(for: record["type"] as? String),
             start: start,
             end: end,
             duration: end.timeIntervalSince(start),
@@ -167,7 +186,7 @@ public class HealthKitPlugin: CAPPlugin {
         guard let kg = number(record["kg"]), kg > 0 else {
             throw HealthKitPluginError.invalid("Weight must be a positive number")
         }
-        let quantity = HKQuantity(unit: HKUnit.gramUnit(with: .kilo), doubleValue: kg)
+        let quantity = Self.bodyMassQuantity(for: kg)
         return HKQuantitySample(
             type: bodyMassType,
             quantity: quantity,
@@ -175,19 +194,6 @@ public class HealthKitPlugin: CAPPlugin {
             end: time,
             metadata: [HKMetadataKeyExternalUUID: id]
         )
-    }
-
-    private func activityType(for value: String?) -> HKWorkoutActivityType {
-        switch value {
-        case "strength_training": return .traditionalStrengthTraining
-        case "walking": return .walking
-        case "running": return .running
-        case "biking_stationary": return .cycling
-        case "elliptical": return .elliptical
-        case "stair_climbing_machine": return .stairClimbing
-        case "other_workout": return .other
-        default: return .other
-        }
     }
 
     // HealthKit does not replace a sample by metadata UUID. Delete an existing openGym record

@@ -352,8 +352,8 @@ is useful only for short-lived development experiments and is not a maintenance 
   calling a particular release device-verified.
 - **Updating:** iOS has no in-app IPA updater. Use Xcode with the same Team for personal builds, or
   TestFlight/App Store distribution when that is configured. Never change the Bundle ID or App Group
-  and never delete the installed app first unless a verified backup and a second copy of the data
-  already exist.
+  and never delete the installed app first unless a verified backup and a verified server copy (or a
+  second independent copy for local-only use) already exist.
 
 ### Release notes for maintainers
 

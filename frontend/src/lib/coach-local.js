@@ -30,7 +30,7 @@ import { todayISO } from './format.js'
 import { t, getLang } from './i18n.js'
 
 export const ADAPTERS = { anthropic, openai, gemini, compatible }
-export const LOCAL_DAILY_CAP = 10
+export const LOCAL_DAILY_CAP = 0
 // Five minutes is right for a cloud API and wrong for a model on somebody's laptop; the
 // OpenAI-compatible endpoint is the one that may be local, so it gets the long budget.
 export const TIMEOUT_MS = 5 * 60000
@@ -129,7 +129,7 @@ async function start(S, kind, opts) {
   const adapter = ADAPTERS[d.provider]
   if (d.mode !== 'byok' || !adapter) throw Object.assign(new Error(t('The Coach isn’t set up on this phone.')), { status: 503, code: 'off' })
   const cap = await capState()
-  if (cap.used >= cap.limit) throw Object.assign(new Error(t('The Coach is taking a breather. You’ve used today’s {0} runs on this phone.', cap.limit)), { status: 429, code: 'cap' })
+  if (cap.limit > 0 && cap.used >= cap.limit) throw Object.assign(new Error(t('The Coach is taking a breather. You’ve used today’s {0} runs on this phone.', cap.limit)), { status: 429, code: 'cap' })
 
   await bumpDaily()
   job = { id: 'local-' + Date.now().toString(36), kind, state: 'running', startedAt: Date.now() }

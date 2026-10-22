@@ -222,7 +222,7 @@ in openGym removes it there; turning it off with "remove" leaves no openGym reco
 
 - Node 20+
 - **Android:** Android Studio (bundles the SDK). Java 21 for Gradle.
-- **iOS:** a Mac with Xcode 15+ and CocoaPods (`brew install cocoapods`). A free Apple ID
+- **iOS:** a Mac with Xcode 15+ and CocoaPods (`brew install cocoapods`). The native shell targets iOS 17.0 so interactive Live Activities are available; iPhone 11 Pro is supported. A free Apple ID
   is enough to run the app on your own iPhone (see below); paid membership is only needed
   for App Store distribution, which openGym doesn't do.
 

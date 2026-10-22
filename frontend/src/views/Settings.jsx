@@ -783,6 +783,9 @@ export default function Settings({ page = null, find = null, via = null }) {
 
     data: () => <>
       <Section title={t('Back up')}>
+        {/* Native export uses the OS share sheet, and the file input below opens Files on iOS. The
+            automatic copy stays in Documents/openGym, so it can be shared or restored without a
+            folder picker. */}
         <Row icon="share" iconTint="var(--blue)" title={t('Export backup (JSON)')} subtitle={hasMedia ? t('Without photos and videos') : undefined} accessory="chevron" onClick={doExport} />
         {hasMedia && <Row icon="share" iconTint="var(--blue)" title={t('Export with photos & videos (.zip)')} accessory="chevron" onClick={doExportZip} />}
         {/* 14 is AUTO_BACKUP_KEEP in lib/mobile.js, written out because the Settings tests mock

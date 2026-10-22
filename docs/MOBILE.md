@@ -4,7 +4,7 @@
 [latest release](https://github.com/DuarteSantos8/openGym/releases/latest) and read
 [how the phone app works](#how-the-phone-app-works) and
 [connecting it to your server](#connecting-the-app-to-your-own-server). On an iPhone, see
-[what's possible](#iphone--whats-actually-possible). Everything from [Prerequisites](#prerequisites)
+[what's possible](#iphone--personal-installation-and-updates). Everything from [Prerequisites](#prerequisites)
 on is for building the app yourself.
 
 ## How the phone app works
@@ -222,19 +222,24 @@ in openGym removes it there; turning it off with "remove" leaves no openGym reco
 
 - Node 20+
 - **Android:** Android Studio (bundles the SDK). Java 21 for Gradle.
-- **iOS:** a Mac with Xcode 15+ and CocoaPods (`brew install cocoapods`). The native shell targets iOS 17.0, establishing the baseline for future interactive Live Activities; the ActivityKit bridge and Live Activity UI are not implemented yet. The target device is iPhone 11 Pro. A free Apple ID
-  is enough to run the app on your own iPhone (see below); paid membership is only needed
-  for App Store distribution, which openGym doesn't do.
+- **iOS:** a Mac with Xcode 15+ and CocoaPods (`brew install cocoapods`). The native app and its
+  Live Activity target use iOS 17.0 as the minimum deployment target; the ActivityKit bridge,
+  widget UI and interactive rest controls are included, but still need a full Xcode build and
+  real-device verification. The target device is iPhone 11 Pro.
+- A free Apple ID can install a short-lived development build on a personal iPhone, but Apple
+  expires that signing after 7 days. For long-term personal use, HealthKit and Live Activity
+  capabilities, and repeatable updates, use the Apple Developer Program with your own Team.
 
 ## Build & run
 
 ```sh
 cd frontend
-npm install
+npm ci
 npm run build:mobile        # VITE_MOBILE build + `cap sync` into android/ and ios/
-
-npx cap open android        # opens Android Studio → run on emulator or device
-npx cap open ios            # opens Xcode (Mac only) → set your signing team, then run
+npx cap sync ios            # repeat explicitly after web/native configuration changes
+cd ios/App
+pod install
+open App.xcworkspace       # choose your Apple Developer Team, then run on the iPhone
 ```
 
 `npm run build:mobile` bakes the CDN media base into the bundle and copies the web build
@@ -308,29 +313,47 @@ zipalign -f -p 4 app-release-unsigned.apk aligned.apk
 apksigner sign --ks my.keystore --ks-key-alias opengym --out openGym.apk aligned.apk
 ```
 
-### iPhone — what's actually possible
+### iPhone — personal installation and updates
 
-Apple does not allow installing apps outside the App Store, so there is no `.ipa` download
-that would simply install. Your free options:
+There is no supported `.ipa` download that installs openGym directly outside Apple's signing
+system. For a personal iPhone 11 Pro, build the Capacitor shell on a Mac and run it from Xcode:
 
-- **Self-host + PWA** (recommended): open your instance in Safari → Share → *Add to Home
-  Screen*. Full-screen app, no expiry, plus sync and passkeys.
-- **Xcode free signing:** open `ios/` in Xcode with a free Apple ID as the team and run it
-  onto your own iPhone. Apple expires the signature after 7 days; re-run from Xcode to renew.
-- **AltStore:** automates that 7-day re-signing over Wi-Fi via a Mac companion app.
+1. Open `frontend/ios/App/App.xcworkspace` after `pod install`.
+2. Select the same Apple Developer **Team** for every build and keep the app identifier
+   `ch.duartesantos.opengym` unchanged.
+3. Keep the App Group `group.ch.duartesantos.opengym` unchanged too; the Live Activity action queue
+   and native app data depend on it.
+4. Select the iPhone as the run destination and install over the existing app. Do **not** delete
+   the old app as part of a normal update: the private state, media and local HealthKit bookkeeping
+   are intended to survive a same-team, same-Bundle-ID update.
+5. Before a major update, export a JSON or ZIP backup. After installing, open the app and verify
+   workout history, the rest timer, Apple Health and the backup in Files before removing any old
+   copy.
 
-There is a `build:ios` job in [`.gitlab-ci.yml`](../.gitlab-ci.yml) for exactly that path: the
-same mobile bundle, `xcodebuild archive` without a signing identity, and an *unsigned* `.ipa`
-(plus `.sha256`) as job artifact — on a tag also under `opengym-ios/<version>/` in the package
-registry — for AltStore/Sideloadly users to sign with their own Apple ID. It needs a Mac: Xcode
-does not run on the Linux project runner, and gitlab.com's hosted macOS runners are not on the
-free tier. To switch it on, register a Mac as a project runner (shell executor; Xcode, CocoaPods
-and Node installed; give it a tag such as `macos`) and set the CI/CD variable `IOS_RUNNER_TAG`
-to that tag — the job then appears in every `main` and tag pipeline. Until that variable exists
-the job is not part of any pipeline, and it has not run yet, so expect a first round of fixes.
-A signed build (TestFlight, App Store) would additionally need an Apple Developer Program
-membership, the distribution certificate and profile as protected file variables, and an
-`-exportArchive` step — none of that is set up.
+The Apple Developer Program is the practical long-term route: it avoids the free-signing 7-day
+expiry and permits the HealthKit and ActivityKit capabilities used by this build. A free Apple ID
+is useful only for short-lived development experiments and is not a maintenance strategy.
+
+### iOS data, HealthKit and Live Activity
+
+- **Files and iCloud:** when Settings → Data & backup → **Auto-backup on changes** is enabled,
+  openGym writes dated JSON copies to `Documents/openGym/`. They are visible through the iOS Files
+  app and can be copied to iCloud Drive, AirDrop or another storage provider. **Import backup**
+  restores a JSON or ZIP chosen from Files. Automatic copies are JSON only; the ZIP export includes
+  exercise media. The folder keeps the newest 14 dated automatic copies and does not delete other
+  Files documents.
+- **Apple Health is opt-in and write-only:** the Apple Health card is shown only in the iOS native
+  app. When enabled, openGym writes finished workouts and body-weight records to HealthKit; it does
+  not read health data back and does not upload HealthKit data to the openGym server or include it in
+  backups. Turning the option off lets the user keep or remove the records written by openGym.
+- **Rest Timer:** on iOS 17.0 and later, the native ActivityKit Live Activity keeps the rest
+  countdown visible on the Lock Screen and Dynamic Island, including pause, ±15-second adjustment
+  and skip actions. The full Xcode build and iPhone acceptance checks are still required before
+  calling a particular release device-verified.
+- **Updating:** iOS has no in-app IPA updater. Use Xcode with the same Team for personal builds, or
+  TestFlight/App Store distribution when that is configured. Never change the Bundle ID or App Group
+  and never delete the installed app first unless a verified backup and a second copy of the data
+  already exist.
 
 ### Release notes for maintainers
 

@@ -80,8 +80,8 @@ afterEach(() => {
   host.remove()
 })
 
-const mount = async () => {
-  await act(async () => { root.render(<Settings page="data" />) })
+const mount = async (page = 'data') => {
+  await act(async () => { root.render(<Settings page={page} />) })
   await act(async () => { await Promise.resolve(); await Promise.resolve() })
 }
 const row = text => [...host.querySelectorAll('.lrow')].find(r => r.textContent.includes(text))
@@ -124,6 +124,18 @@ describe('Settings — Health Connect', () => {
     await act(async () => { switchRow.querySelector('[role="switch"]').click() })
     expect(mocks.enableHealth).toHaveBeenCalledTimes(1)
     expect(row('Open Apple Health')).toBeTruthy()
+  })
+
+  it('keeps iOS backup in Files and hides Android-only controls', async () => {
+    mocks.android = false
+    mocks.ios = true
+    await mount('data')
+    expect(row('Auto-backup on changes')).toBeTruthy()
+    expect(row('Auto-backup on changes').textContent).toContain('Documents/openGym')
+    expect(row('Backup folder')).toBeUndefined()
+
+    await mount('about')
+    expect(row('Check for updates')).toBeUndefined()
   })
 
   it('turning it off asks whether to keep or remove what was written', async () => {
